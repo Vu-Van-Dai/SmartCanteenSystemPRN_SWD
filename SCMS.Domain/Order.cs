@@ -23,7 +23,7 @@ namespace SCMS.Domain
 
         [Required]
         [MaxLength(50)]
-        public string Status { get; set; } // e.g., Pending, Paid, Preparing, Ready, Completed
+        public string Status { get; set; } // e.g., Pending, Paid, Preparing, Ready, Completed, Cancelled
 
         public virtual ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
     }

@@ -30,7 +30,7 @@ namespace SCMS.Domain
         public int CategoryId { get; set; }
 
         [ForeignKey("CategoryId")]
-        [JsonIgnore] // Quan trọng: Tránh lỗi lặp vô hạn khi API serialize
+        [JsonIgnore] // Quan trọng: Tránh lỗi lặp vô hạn khi API serialize đối tượng
         public virtual Category? Category { get; set; } // Cho phép Category có thể null
 
         // Navigation property

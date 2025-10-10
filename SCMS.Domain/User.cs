@@ -38,7 +38,7 @@ namespace SCMS.Domain
         // Một phụ huynh có thể liên kết với nhiều học sinh
         public virtual ICollection<User> LinkedStudents { get; set; } = new List<User>();
 
-        // Quan hệ một-một với Wallet
+        // Quan hệ một-một với Wallet 
         public virtual Wallet Wallet { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
