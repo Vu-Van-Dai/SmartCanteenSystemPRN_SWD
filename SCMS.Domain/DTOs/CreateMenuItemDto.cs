@@ -17,5 +17,8 @@ namespace SCMS.Domain.DTOs
         [Range(0, int.MaxValue)]
         public int InventoryQuantity { get; set; }
 
+        [Required]
+        public int CategoryId { get; set; }
+        public string? ImageUrl { get; set; }
     }
 }
