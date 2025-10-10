@@ -76,7 +76,14 @@ namespace SCMS.Application
             return order;
         }
 
-        
+        public async Task<List<Order>> GetOrdersByStatusAsync(string status)
+        {
+            return await _context.Orders
+                .Where(o => o.Status == status)
+                .Include(o => o.OrderItems) 
+                .ThenInclude(oi => oi.MenuItem)
+                .ToListAsync();
+        }
         public async Task<(bool Success, string Message, Order? Order)> ProgressOrderStatusAsync(int orderId)
         {
             var order = await _context.Orders
@@ -89,12 +96,13 @@ namespace SCMS.Application
                 return (false, "Không tìm thấy đơn hàng.", null);
             }
 
+            
             string nextStatus = order.Status switch
             {
                 "Paid" => "Preparing",
                 "Preparing" => "Ready for Pickup",
                 "Ready for Pickup" => "Completed",
-                _ => ""
+                _ => "" 
             };
 
             if (string.IsNullOrEmpty(nextStatus))
@@ -120,7 +128,62 @@ namespace SCMS.Application
             return (true, $"Đã cập nhật đơn hàng sang trạng thái '{nextStatus}'.", order);
         }
 
-       
+        public async Task<(bool Success, string Message)> RejectOrderAsync(int orderId, string rejectionReason)
+        {
+            var order = await _context.Orders.FindAsync(orderId);
+            if (order == null)
+            {
+                return (false, "Không tìm thấy đơn hàng.");
+            }
+
+            if (order.Status != "Paid")
+            {
+                return (false, $"Không thể từ chối đơn hàng đang ở trạng thái '{order.Status}'.");
+            }
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var refundMessage = $"Hoàn tiền cho đơn hàng #{orderId} bị Canteen từ chối.";
+                var refundSuccess = await _walletService.RefundAsync(order.OrderId, order.TotalPrice, refundMessage);
+                if (!refundSuccess)
+                {
+                    await transaction.RollbackAsync();
+                    return (false, "Xảy ra lỗi trong quá trình hoàn tiền.");
+                }
+
+                var orderItems = await _context.OrderItems.Where(oi => oi.OrderId == orderId).ToListAsync();
+                var menuItemIds = orderItems.Select(oi => oi.ItemId).ToList();
+                var menuItemsToUpdate = await _context.MenuItems
+                                              .Where(mi => menuItemIds.Contains(mi.ItemId))
+                                              .ToListAsync();
+                foreach (var orderItem in orderItems)
+                {
+                    var menuItem = menuItemsToUpdate.FirstOrDefault(mi => mi.ItemId == orderItem.ItemId);
+                    if (menuItem != null)
+                    {
+                        menuItem.InventoryQuantity += orderItem.Quantity;
+                    }
+                }
+
+                order.Status = "Cancelled";
+                order.RejectionReason = rejectionReason; 
+
+                await _context.SaveChangesAsync();
+
+                string notificationMessage = $"Đơn hàng #{order.OrderId} của bạn đã bị hủy vì lý do: '{rejectionReason}'. Tiền đã được hoàn lại.";
+                await _notificationService.CreateNotificationAsync(order.UserId, notificationMessage, "/my-orders/");
+
+                await transaction.CommitAsync();
+
+                return (true, "Từ chối đơn hàng thành công và đã hoàn tiền cho khách.");
+            }
+            catch (Exception)
+            {
+                await transaction.RollbackAsync();
+                return (false, "Lỗi hệ thống khi từ chối đơn hàng.");
+            }
+        }
         public async Task<List<Order>> GetOrdersByUserIdAsync(int userId)
         {
             return await _context.Orders
@@ -270,14 +333,22 @@ namespace SCMS.Application
 
             return await _context.Orders
                 .Where(o => processableStatuses.Contains(o.Status))
-                .Include(o => o.User)
+                .Include(o => o.User) 
                 .Include(o => o.OrderItems)
                 .ThenInclude(oi => oi.MenuItem)
                 .OrderBy(o => o.OrderDate)
                 .ToListAsync();
         }
 
-        
+        public async Task<List<Order>> GetAllOrdersAsync()
+        {
+            return await _context.Orders
+                .Include(o => o.User) 
+                .Include(o => o.OrderItems)
+                .ThenInclude(oi => oi.MenuItem)
+                .OrderByDescending(o => o.OrderDate) 
+                .ToListAsync();
+        }
         public class UpdateOrderResult
         {
             public bool Success { get; set; }
@@ -370,6 +441,40 @@ namespace SCMS.Application
                 return new UpdateOrderResult { Success = false, Message = "Đã xảy ra lỗi hệ thống khi cập nhật đơn hàng.", ErrorCode = "SERVER_ERROR" };
             }
         }
+        public async Task AutoCancelUnpaidOrdersAsync()
+        {
+            var tenMinutesAgo = DateTime.UtcNow.AddMinutes(-10);
+
+            var ordersToCancel = await _context.Orders
+                .Include(o => o.OrderItems)
+                .Where(o => o.Status == "Pending Payment" && o.OrderDate <= tenMinutesAgo)
+                .ToListAsync();
+
+            if (!ordersToCancel.Any())
+            {
+                return; 
+            }
+
+            var allItemIds = ordersToCancel.SelectMany(o => o.OrderItems.Select(oi => oi.ItemId)).Distinct().ToList();
+            var menuItemsToUpdate = await _context.MenuItems
+                                                  .Where(mi => allItemIds.Contains(mi.ItemId))
+                                                  .ToDictionaryAsync(mi => mi.ItemId);
+
+            foreach (var order in ordersToCancel)
+            {
+                order.Status = "Cancelled";
+                order.RejectionReason = "Tự động hủy do không thanh toán sau 10 phút.";
+
+                foreach (var orderItem in order.OrderItems)
+                {
+                    if (menuItemsToUpdate.TryGetValue(orderItem.ItemId, out var menuItem))
+                    {
+                        menuItem.InventoryQuantity += orderItem.Quantity;
+                    }
+                }
+            }
+
+            await _context.SaveChangesAsync();
         }
     }
 }
