@@ -1,5 +1,4 @@
-﻿// File: SCMS.Application/DTOs/UpdateMenuItemDto.cs
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace SCMS.Domain.DTOs
 {
@@ -20,5 +19,8 @@ namespace SCMS.Domain.DTOs
         [Required]
         public int CategoryId { get; set; }
 
+        public string? ImageUrl { get; set; }
+
+        public bool IsAvailable { get; set; }
     }
 }
