@@ -11,8 +11,8 @@ namespace SCMS.Application
         Task<List<MenuItem>?> GetMenuItemsAsync(string? searchTerm, int? categoryId);
         Task<List<Category>?> GetAllCategoriesAsync();
         Task<MenuItem?> GetMenuItemByIdAsync(int id);
-        //Task<MenuItem?> CreateMenuItemAsync(CreateMenuItemDto menuItemDto);
-        //Task<bool> UpdateMenuItemAsync(int id, UpdateMenuItemDto menuItemDto);
+        Task<MenuItem?> CreateMenuItemAsync(CreateMenuItemDto menuItemDto);
+        Task<bool> UpdateMenuItemAsync(int id, UpdateMenuItemDto menuItemDto);
         Task<bool> DeleteMenuItemAsync(int id);
     }
 }
