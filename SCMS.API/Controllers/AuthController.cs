@@ -60,5 +60,45 @@ namespace SCMS.API.Controllers
             return BadRequest("Invalid or expired token.");
         }
 
-        
+        [Authorize] // This endpoint requires the user to be logged in
+        [HttpPost("change-password")]
+        public async Task<IActionResult> ChangePassword(ChangePasswordDto dto)
+        {
+            // Get the user ID from the token claims
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(userIdStr, out var userId))
+            {
+                return Unauthorized();
+            }
+
+            var success = await _userService.ChangePasswordAsync(userId, dto);
+
+            if (success)
+            {
+                return Ok(new { Message = "Password changed successfully." });
+            }
+            return BadRequest(new { Message = "Incorrect old password." });
+        }
+
+        [Authorize]
+        [HttpGet("profile")]
+        public async Task<IActionResult> GetProfile()
+        {
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(userIdStr, out var userId))
+            {
+                return Unauthorized();
+            }
+
+            var user = await _userService.GetUserByIdAsync(userId);
+            if (user == null)
+            {
+                return NotFound();
+            }
+
+            // Return a DTO instead of the full User object for security
+            return Ok(new { user.FullName, user.Email, Role = user.Role.RoleName });
+        }
+        // END: ADDED CODE
+    }
 }
