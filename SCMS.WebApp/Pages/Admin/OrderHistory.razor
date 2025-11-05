@@ -49,8 +49,20 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        // === ĐẢM BẢO DÒNG NÀY GỌI ĐÚNG GetOrderHistoryAsync ===
         allOrders = await OrderService.GetOrderHistoryAsync();
     }
 
+    private string GetStatusBadgeClass(string status)
+    {
+        return status switch
+        {
+            "Pending Payment" => "bg-secondary",
+            "Paid" => "bg-info text-dark",
+            "Preparing" => "bg-primary",
+            "Ready for Pickup" => "bg-dark",
+            "Completed" => "bg-success",
+            "Cancelled" => "bg-danger",
+            _ => "bg-light text-dark"
+        };
+    }
 }

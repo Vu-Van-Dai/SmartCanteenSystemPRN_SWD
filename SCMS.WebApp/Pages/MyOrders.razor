@@ -86,7 +86,6 @@ else
                             <button class="btn btn-warning btn-sm mx-1" @onclick="() => EditOrder(order)">Chỉnh sửa</button>
                         }
 
-                        @* CHỈ HIỂN THỊ NÚT HỦY KHI ĐƠN HÀNG ĐÃ ĐƯỢC THANH TOÁN (Status == "Paid") *@
                         @if (order.Status == "Paid")
                         {
                             <button class="btn btn-danger btn-sm" @onclick="() => HandleCancelOrder(order)">Hủy đơn</button>
@@ -100,7 +99,7 @@ else
 
 @code {
     private List<Order>? orders;
-    private Order? selectedOrder; // Biến để lưu đơn hàng đang được xem chi tiết
+    private Order? selectedOrder; 
 
     protected override async Task OnInitializedAsync()
     {
@@ -162,11 +161,22 @@ else
         }
     }
 
+    private string GetStatusBadgeClass(string status)
+    {
+        return status switch
+        {
+            "Pending Payment" => "bg-warning text-dark",
+            "Paid" => "bg-info text-dark",
+            "Preparing" => "bg-primary",
+            "Ready for Pickup" => "bg-success",
+            "Completed" => "bg-success",
+            "Cancelled" => "bg-danger",
+            _ => "bg-dark"
+        };
+    }
     private void EditOrder(Order order)
     {
-        // Sử dụng service để nạp các món ăn của đơn hàng vào giỏ
         CartService.LoadOrderForEditing(order);
-        // Điều hướng người dùng đến trang giỏ hàng
         NavigationManager.NavigateTo("/cart");
     }
 }
