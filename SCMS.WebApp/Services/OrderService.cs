@@ -3,34 +3,26 @@ using SCMS.Domain.DTOs;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
-using System.Collections.Generic; 
+using System.Collections.Generic;
 
 namespace SCMS.WebApp.Services
 {
-
-    // Các lớp này dùng để đóng gói kết quả trả về từ service, giúp UI dễ dàng xử lý
-    // và hiển thị thông báo chi tiết cho người dùng.
-
-    // Chứa kết quả chung cho các thao tác trả về message (thành công/thất bại)
     public class OperationResult
     {
         public bool Success { get; set; }
         public string Message { get; set; } = string.Empty;
     }
 
-    /// Chứa kết quả cho việc đặt hàng mới
     public class PlaceOrderResult : OperationResult
     {
         public Order? CreatedOrder { get; set; }
     }
 
-    /// Chứa kết quả cho việc cập nhật đơn hàng
     public class UpdateOrderResult : OperationResult
     {
         public Order? UpdatedOrder { get; set; }
     }
-    
-    /// Dùng để đọc cấu trúc lỗi chung từ API (e.g., { "message": "..." })
+
     public class ErrorResponse
     {
         public string Message { get; set; } = string.Empty;
@@ -49,7 +41,6 @@ namespace SCMS.WebApp.Services
         }
 
 
-        /// Đặt một đơn hàng mới. Trả về kết quả chi tiết.
         public async Task<PlaceOrderResult> PlaceOrderAsync(PlaceOrderRequestDto orderDto)
         {
             try
@@ -64,19 +55,16 @@ namespace SCMS.WebApp.Services
                 }
                 else
                 {
-                    // Đọc lỗi từ ErrorHandlingMiddleware hoặc BadRequest
                     var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
                     return new PlaceOrderResult { Success = false, Message = error?.Message ?? "Đặt hàng thất bại." };
                 }
             }
             catch (Exception ex)
             {
-                // Xử lý các lỗi kết nối mạng, etc.
                 return new PlaceOrderResult { Success = false, Message = $"Lỗi hệ thống: {ex.Message}" };
             }
         }
 
-        /// Cập nhật một đơn hàng đang chờ thanh toán. Trả về kết quả chi tiết.
         public async Task<UpdateOrderResult> UpdateOrderAsync(int orderId, PlaceOrderRequestDto orderDto)
         {
             try
@@ -100,20 +88,16 @@ namespace SCMS.WebApp.Services
             }
         }
 
-        /// Xác nhận thanh toán cho một đơn hàng. Trả về kết quả chi tiết.
         public async Task<OperationResult> ConfirmOrderPaymentAsync(int orderId)
         {
             try
             {
                 var response = await _httpClient.PostAsync($"api/Orders/{orderId}/confirm-payment", null);
-                
-                // API trả về message cho cả trường hợp thành công và thất bại
-                var result = await response.Content.ReadFromJsonAsync<ErrorResponse>(); // Dùng chung ErrorResponse vì cấu trúc JSON { "message": "..." } là như nhau
+
+                var result = await response.Content.ReadFromJsonAsync<ErrorResponse>(); 
                 if (response.IsSuccessStatusCode)
                 {
-                    // --- BẮT ĐẦU THAY ĐỔI 4 ---
                     await _notificationService.RefreshUnreadCountAsync();
-                    // --- KẾT THÚC THAY ĐỔI 4 ---
                 }
                 return new OperationResult
                 {
@@ -127,19 +111,16 @@ namespace SCMS.WebApp.Services
             }
         }
 
-        /// Hủy một đơn hàng đã thanh toán. Trả về kết quả chi tiết.
         public async Task<OperationResult> CancelOrderAsync(int orderId)
         {
             try
             {
                 var response = await _httpClient.PostAsync($"api/Orders/{orderId}/cancel", null);
-                
+
                 var result = await response.Content.ReadFromJsonAsync<ErrorResponse>();
                 if (response.IsSuccessStatusCode)
                 {
-                    // --- BẮT ĐẦU THAY ĐỔI 5 ---
                     await _notificationService.RefreshUnreadCountAsync();
-                    // --- KẾT THÚC THAY ĐỔI 5 ---
                 }
                 return new OperationResult
                 {
@@ -189,11 +170,13 @@ namespace SCMS.WebApp.Services
             }
         }
 
-        public async Task<OperationResult> RejectOrderAsync(int orderId)
+        public async Task<OperationResult> RejectOrderAsync(int orderId, string reason)
         {
             try
             {
-                var response = await _httpClient.PostAsync($"api/orders/{orderId}/reject", null);
+                var dto = new UpdateOrderStatusDto { Status = "Cancelled", RejectionReason = reason };
+                var response = await _httpClient.PostAsJsonAsync($"api/orders/{orderId}/reject", dto);
+
                 var result = await response.Content.ReadFromJsonAsync<ErrorResponse>();
                 return new OperationResult
                 {
